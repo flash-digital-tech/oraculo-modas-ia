@@ -1,0 +1,9 @@
+# created by virtualenv automatically
+*.tmp
+share
+Scripts
+Include
+etc
+Library
+Lib
+.streamlit/secrets.toml

@@ -1,0 +1,23 @@
+
+credentials:
+  users:
+    - username: "regiane"
+      name: "Regiane dos Santos"
+      email: "regiane@gmail.com"
+      password: "hashed_password_parceiro"  # Use um hash seguro
+      role: "parceiro"
+    - username: "jony"
+      name: "Jony da Silva"
+      email: "jony@gmail.com"
+      password: "hashed_password_cliente"  # Use um hash seguro
+      role: "cliente"
+    - username: "duda"
+      name: "Eduarda Christina"
+      email: "duda@gmail.com"
+      password: "hashed_password_admin"  # Use um hash seguro
+      role: "admin"
+
+cookie:
+  name: "my_cookie_name"
+  key: "my_signature_key"
+  expiry_days: 30
