@@ -2,10 +2,10 @@ import re
 import streamlit as st
 import requests  # pip install requests
 import pandas as pd
-import datetime
+from decouple import config
 
 
-WEBHOOK_URL = st.secrets["WEBHOOK_URL"]
+WEBHOOK_URL = config("WEBHOOK_URL")
 
 
 def is_valid_email(email):

@@ -6,4 +6,8 @@ Include
 etc
 Library
 Lib
-.streamlit/secrets.toml
+.env
+--pycache__
+.idea
+.streamlit
+

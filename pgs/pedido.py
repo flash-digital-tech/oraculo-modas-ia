@@ -11,97 +11,54 @@ from langchain.llms import Replicate
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from decouple import config
+
+
+st.set_page_config(page_title='ORACULO MODAS', page_icon="👗", layout="wide")
+
+
+# --- Verifica se o token da API está nos segredos ---
+if 'REPLICATE_API_TOKEN' in st.secrets:
+    replicate_api = st.secrets['REPLICATE_API_TOKEN']
+else:
+    # Se a chave não está nos segredos, define um valor padrão ou continua sem o token
+    replicate_api = None
+
+# Essa parte será executada se você precisar do token em algum lugar do seu código
+if replicate_api is None:
+    # Se você quiser fazer algo específico quando não há token, você pode gerenciar isso aqui
+    # Por exemplo, configurar uma lógica padrão ou deixar o aplicativo continuar sem mostrar nenhuma mensagem:
+    st.warning('Um token de API é necessário para determinados recursos.', icon='⚠️')
+
+# Inicializar o modelo da Replicate
+llm = Replicate(
+    model="meta/meta-llama-3-70b-instruct",
+    api_token=replicate_api
+)
+
 
 
 async def showPedido():
 
-    # --- Verifica se o token da API está nos segredos ---
-    if 'REPLICATE_API_TOKEN' in st.secrets:
-        replicate_api = st.secrets['REPLICATE_API_TOKEN']
-    else:
-        # Se a chave não está nos segredos, define um valor padrão ou continua sem o token
-        replicate_api = None
-
-    # Essa parte será executada se você precisar do token em algum lugar do seu código
-    if replicate_api is None:
-        # Se você quiser fazer algo específico quando não há token, você pode gerenciar isso aqui
-        # Por exemplo, configurar uma lógica padrão ou deixar o aplicativo continuar sem mostrar nenhuma mensagem:
-        st.warning('Um token de API é necessário para determinados recursos.', icon='⚠️')
-
-
-
-
-    ################################################# ENVIO DE E-MAIL ####################################################
-    ############################################# PARA CONFIRMAÇÃO DE DADOS ##############################################
-
-    # Função para enviar o e-mail
-
-    def enviar_email(destinatario, assunto, corpo):
-        remetente = "mensagem@flashdigital.tech"  # Insira seu endereço de e-mail
-        senha = "sua_senha"  # Insira sua senha de e-mail
-
-        msg = MIMEMultipart()
-        msg['From'] = remetente
-        msg['To'] = destinatario
-        msg['Subject'] = assunto
-        msg.attach(MIMEText(corpo, 'plain'))
-
-        try:
-            server = smtplib.SMTP('mail.flashdigital.tech', 587)
-            server.starttls()
-            server.login(remetente, senha)
-            server.sendmail(remetente, destinatario, msg.as_string())
-            server.quit()
-            st.success("E-mail enviado com sucesso!")
-        except Exception as e:
-            st.error(f"Erro ao enviar e-mail: {e}")
-
-        # Enviando o e-mail ao pressionar o botão de confirmação
-        if st.button("DADOS CONFIRMADO"):
-            # Obter os dados salvos em st.session_state
-            nome = st.session_state.user_data["name"]
-            email = st.session_state.user_data["email"]
-            whatsapp = st.session_state.user_data["whatsapp"]
-            endereco = st.session_state.user_data["endereco"]
-
-            # Construindo o corpo do e-mail
-            corpo_email = f"""
-            Olá {nome},
-    
-            Segue a confirmação dos dados:
-            - Nome: {nome}
-            - E-mail: {email}
-            - WhatsApp: {whatsapp}
-            - Endereço: {endereco}
-    
-            Obrigado pela confirmação!
-            """
-
-            # Enviando o e-mail
-            enviar_email(email, "Confirmação de dados", corpo_email)
-
-
-    #######################################################################################################################
-
     system_prompt = f'''
     Você é uma atendente virtual chamada "KIRA", que atuará como atendente virtual da plataforma FAM, facilitando a interação entre fabricantes de moda e lojistas no Brasil. 
-
-1. **Definição Clara**: Você deve ser uma assistente que não apenas responde perguntas, mas também oferece conselhos sobre como maximizar as vendas, sugere estratégias de marketing e conecta os fabricantes aos lojistas de forma eficaz. Isso ajudará a IA a entender melhor as expectativas dos usuários.
-
-2. **Estrutura da Resposta**: Ao interagir com os usuários, KIRA deve organizar suas respostas em partes lógicas. Por exemplo:
-   - **Saudação**: "Olá! Sou a KIRA, sua assistente virtual."
-   - **Identificação de Necessidades**: "Como posso ajudar você hoje? Está buscando conectar-se a um lojista ou precisa de dicas para aumentar suas vendas?"
-   - **Solução**: Após a identificação, KIRA pode fornecer informações específicas ou direcionar o usuário para as funcionalidades da plataforma.
-
-3. **Tom de Comunicação**: O tom de seu deve ser amigável e acessível. Em conversas mais formais, ela pode usar uma linguagem técnica e objetiva, mas em interações cotidianas, ela deve adotar um tom mais descontraído e motivacional. Por exemplo: "Vamos juntos fazer seu negócio brilhar no mercado!".
-
-4. **Personalização e Precisão**:Você deve ser capaz de personalizar suas respostas com base nas informações fornecidas pelos usuários. Por exemplo, se o fabricante mencionar que está lançando uma nova linha de produtos, FAMOSA pode oferecer dicas específicas sobre como promovê-los para os lojistas, aumentando assim a relevância da interação.
-5. Se o cliente quiser fazer uma assinatura para ter acessoa plataforma envie este link: https://buy.stripe.com/test_fZeg2L7MBcCE9heeUY
-6. Se o cliente desejar conversar com uma consultora envie este link de WhatsApp da Consultora Mari: https://wa.me/+553199302907
+    
+    1. **Definição Clara**: Você deve ser uma assistente que não apenas responde perguntas, mas também oferece conselhos sobre como maximizar as vendas, sugere estratégias de marketing e conecta os fabricantes aos lojistas de forma eficaz. Isso ajudará a IA a entender melhor as expectativas dos usuários.
+    
+    2. **Estrutura da Resposta**: Ao interagir com os usuários, KIRA deve organizar suas respostas em partes lógicas. Por exemplo:
+    - **Saudação**: "Olá! Sou a KIRA, sua assistente virtual."
+    - **Identificação de Necessidades**: "Como posso ajudar você hoje? Está buscando conectar-se a um lojista ou precisa de dicas para aumentar suas vendas?"
+    - **Solução**: Após a identificação, KIRA pode fornecer informações específicas ou direcionar o usuário para as funcionalidades da plataforma.
+    
+    3. **Tom de Comunicação**: O tom de seu deve ser amigável e acessível. Em conversas mais formais, ela pode usar uma linguagem técnica e objetiva, mas em interações cotidianas, ela deve adotar um tom mais descontraído e motivacional. Por exemplo: "Vamos juntos fazer seu negócio brilhar no mercado!".
+    
+    4. **Personalização e Precisão**:Você deve ser capaz de personalizar suas respostas com base nas informações fornecidas pelos usuários. Por exemplo, se o fabricante mencionar que está lançando uma nova linha de produtos, FAMOSA pode oferecer dicas específicas sobre como promovê-los para os lojistas, aumentando assim a relevância da interação.
+    5. Se o cliente quiser fazer uma assinatura para ter acessoa plataforma envie este link: https://buy.stripe.com/test_fZeg2L7MBcCE9heeUY
+    6. Se o cliente desejar conversar com uma consultora envie este link de WhatsApp da Consultora Mari: https://wa.me/+553199302907
     '''
 
     # Set assistant icon to Snowflake logo
-    icons = {"assistant": "./src/img/kira.png", "user": "./src/img/perfil-usuario.png"}
+    icons = {"assistant": "./src/img/perfil-kira1.png", "user": "./src/img/perfil-usuario.png"}
 
     # Replicate Credentials
     with st.sidebar:
@@ -150,7 +107,7 @@ async def showPedido():
         )
         st.sidebar.markdown("---")
         st.info("Agora que você está aqui, vamos aprender como interagir comigo, KIRA, sua assistente virtual de moda!"
-
+    
                 "Perguntando à KIRA"
                 
                 "Para perguntar algo, basta digitar sua pergunta no campo de texto abaixo." "Você pode perguntar sobre:"
@@ -187,11 +144,6 @@ async def showPedido():
 
         st.sidebar.markdown("---")
 
-    # Inicializar o modelo da Replicate
-    llm = Replicate(
-        model="meta/meta-llama-3-70b-instruct",
-        api_token=replicate_api
-    )
 
     # Store LLM-generated responses
     if "messages" not in st.session_state.keys():
@@ -270,7 +222,7 @@ async def showPedido():
 
     # Generate a new response if last message is not from assistant
     if st.session_state.messages[-1]["role"] != "assistant":
-        with st.chat_message("assistant", avatar="./src/img/perfil-kira.png"):
+        with st.chat_message("assistant", avatar="./src/img/perfil-kira1.png"):
             response = generate_arctic_response()
             full_response = st.write_stream(response)
         message = {"role": "assistant", "content": full_response}

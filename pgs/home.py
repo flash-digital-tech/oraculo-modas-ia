@@ -4,12 +4,15 @@ import requests
 import json
 
 
+st.set_page_config(page_title='ORACULO MODAS', page_icon="👗", layout="wide")
+
+
 async def showHome():
 
     # --- HERO SECTION ---
     col1, col2 = st.columns(2, gap="small", vertical_alignment="center")
     with col1:
-        st.image("./src/img/kira.png", width=230)
+        st.image("./src/img/perfil-kira1.png", width=230)
 
     with col2:
         # Função para carregar animação Lottie

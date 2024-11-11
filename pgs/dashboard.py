@@ -4,11 +4,8 @@ import streamlit as st
 from pygwalker.api.streamlit import init_streamlit_comm, get_streamlit_html
 import streamlit_shadcn_ui as ui
 
-# Configuração da página deve ser a primeira chamada
-st.set_page_config(
-    page_title="Dashboard Flash",
-    layout="wide"
-)
+
+st.set_page_config(page_title='DASHBOARD DE VENDAS', page_icon="📊", layout="wide")
 
 
 async def showDashboard():

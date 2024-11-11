@@ -20,6 +20,9 @@ from pgs.subcontas_criar import showParceiro
 from pgs.webhooks import shoWebhooks
 
 
+st.set_page_config(page_title='ORACULO MODAS', page_icon="👗", layout="wide")
+
+
 # --- LOAD CONFIGURATION ---
 with open("config.yaml") as file:
     config = yaml.safe_load(file)
@@ -146,7 +149,7 @@ if 'authentication_status' in st.session_state and st.session_state['authenticat
             return base64.b64encode(img_file.read()).decode()
 
     # Load and display sidebar image with glowing effect
-    img_path = "./src/img/kira.png"
+    img_path = "./src/img/perfil-kira.jpeg"
     img_base64 = img_to_base64(img_path)
     st.sidebar.markdown(
         f'<img src="data:image/png;base64,{img_base64}" class="cover-glow">',
