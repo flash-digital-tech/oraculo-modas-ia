@@ -1,20 +1,26 @@
+import asyncio
+
 import streamlit as st
-import os
 from transformers import AutoTokenizer
 import base64
-from forms.contact import cadastro_pedido
-import asyncio
+import pandas as pd
+import io
+from fastapi import FastAPI
+import stripe
+from util import carregar_arquivos
+import os
+import glob
+from forms.contact import cadastrar_cliente, agendar_reuniao
 
 import replicate
 from langchain.llms import Replicate
 
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from key_config import API_KEY_STRIPE, URL_BASE
 from decouple import config
 
 
-st.set_page_config(page_title='ORACULO MODAS', page_icon="👗", layout="wide")
+app = FastAPI()
+
 
 
 # --- Verifica se o token da API está nos segredos ---
@@ -30,6 +36,7 @@ if replicate_api is None:
     # Por exemplo, configurar uma lógica padrão ou deixar o aplicativo continuar sem mostrar nenhuma mensagem:
     st.warning('Um token de API é necessário para determinados recursos.', icon='⚠️')
 
+
 # Inicializar o modelo da Replicate
 llm = Replicate(
     model="meta/meta-llama-3-70b-instruct",
@@ -40,8 +47,78 @@ llm = Replicate(
 
 async def showPedido():
 
+
+    if "image" not in st.session_state:
+        st.session_state.image = None
+    
+    def ler_arquivos_txt(pasta):
+        """
+        Lê todos os arquivos .txt na pasta especificada e retorna uma lista com o conteúdo de cada arquivo.
+
+        Args:
+            pasta (str): O caminho da pasta onde os arquivos .txt estão localizados.
+
+        Returns:
+            list: Uma lista contendo o conteúdo de cada arquivo .txt.
+        """
+        conteudos = []  # Lista para armazenar o conteúdo dos arquivos
+
+        # Cria o caminho para buscar arquivos .txt na pasta especificada
+        caminho_arquivos = os.path.join(pasta, '*.txt')
+
+        # Usa glob para encontrar todos os arquivos .txt na pasta
+        arquivos_txt = glob.glob(caminho_arquivos)
+
+        # Lê o conteúdo de cada arquivo .txt encontrado
+        for arquivo in arquivos_txt:
+            with open(arquivo, 'r', encoding='utf-8') as f:
+                conteudo = f.read()  # Lê o conteúdo do arquivo
+                conteudos.append(conteudo)  # Adiciona o conteúdo à lista
+
+        return conteudos  # Retorna a lista de conteúdos
+
+    # Exemplo de uso da função
+    pasta_conhecimento = './conhecimento'  # Caminho da pasta onde os arquivos .txt estão localizados
+    conteudos_txt = ler_arquivos_txt(pasta_conhecimento)
+
+    is_in_registration = False
+    is_in_scheduling = False
+
+
+    # Função para verificar se a pergunta está relacionada a cadastro
+    def is_health_question(prompt):
+        keywords = ["cadastrar", "inscrição", "quero me cadastrar", "gostaria de me registrar",
+                    "desejo me cadastrar", "quero fazer o cadastro", "quero me registrar", "quero me increver",
+                    "desejo me registrar", "desejo me inscrever","eu quero me cadastrar", "eu desejo me cadastrar",
+                    "eu desejo me registrar", "eu desejo me inscrever", "eu quero me registrar", "eu desejo me registrar",
+                    "eu quero me inscrever"]
+        return any(keyword.lower() in prompt.lower() for keyword in keywords)
+
+    #Função que analisa desejo de agendar uma reunião
+    def is_schedule_meeting_question(prompt):
+        keywords = [
+            "agendar reunião", "quero agendar uma reunião", "gostaria de agendar uma reunião",
+            "desejo agendar uma reunião", "quero marcar uma reunião", "gostaria de marcar uma reunião",
+            "desejo marcar uma reunião", "posso agendar uma reunião", "posso marcar uma reunião",
+            "Eu gostaria de agendar uma reuniao", "eu quero agendar", "eu quero agendar uma reunião,",
+            "quero reunião"
+        ]
+        return any(keyword.lower() in prompt.lower() for keyword in keywords)
+
     system_prompt = f'''
-    Você é uma atendente virtual chamada "KIRA", que atuará como atendente virtual da plataforma FAM, facilitando a interação entre fabricantes de moda e lojistas no Brasil. 
+    Você é uma atendente virtual chamada "KIRA", que atuará como atendente virtual da plataforma FAM, facilitando a 
+    interação entre fabricantes de moda e lojistas no Brasil. 
+
+    **Cadastro e Agendamento:**
+       - Se o usuário estiver com o status de cadastro {is_in_registration} ou agendamento {is_in_scheduling}, 
+       informe que não enviará mais informações até que finalize o cadastro. Use uma resposta padrão que diga: 
+       "Aguardo a finalização do seu cadastro para continuar."
+
+    **Opção de Cadastro e Agendamento:**
+       - Se o usuário enviar {is_health_question} ou {is_schedule_meeting_question}, responda que está aguardando o preenchimento completo do formulário. 
+       - Mantenha a mesma resposta enquanto ele não finalizar o cadastro.
+       - Se o status do cadastro estiver {is_in_scheduling} ou {is_in_registration} mantenha a mesma resposta enquanto
+       ele não finalizar o cadastro.
     
     1. **Definição Clara**: Você deve ser uma assistente que não apenas responde perguntas, mas também oferece conselhos sobre como maximizar as vendas, sugere estratégias de marketing e conecta os fabricantes aos lojistas de forma eficaz. Isso ajudará a IA a entender melhor as expectativas dos usuários.
     
@@ -56,10 +133,7 @@ async def showPedido():
     5. Se o cliente quiser fazer uma assinatura para ter acessoa plataforma envie este link: https://buy.stripe.com/test_fZeg2L7MBcCE9heeUY
     6. Se o cliente desejar conversar com uma consultora envie este link de WhatsApp da Consultora Mari: https://wa.me/+553199302907
     '''
-
-    # Set assistant icon to Snowflake logo
-    icons = {"assistant": "./src/img/perfil-kira1.png", "user": "./src/img/perfil-usuario.png"}
-
+    
     # Replicate Credentials
     with st.sidebar:
         st.markdown(
@@ -147,22 +221,34 @@ async def showPedido():
 
     # Store LLM-generated responses
     if "messages" not in st.session_state.keys():
-        st.session_state.messages = [{"role": "assistant", "content": 'Olá! Sou a KIRA, sua assistente virtual de moda aqui na FAM. Vou te ajudar a conectar com os melhores fabricantes e tornar sua experiência de compra ainda mais incrível.'}]
+        st.session_state.messages = [{
+            "role": "assistant", "content": '🌟 Bem-vindo ao Alan Coach! Estou aqui para te guiar na jornada de autodescoberta e transformação, rumo à sua melhor versão. Vamos juntos! 💪✨'}]
 
-    # Display or clear chat messages
+    # Dicionário de ícones
+    icons = {
+        "assistant": "./src/img/perfil-kira2.png",  # Ícone padrão do assistente
+        "user": "./src/img/perfil-usuario.png"            # Ícone padrão do usuário
+    }
+    
+    # Caminho para a imagem padrão
+    default_avatar_path = "./src/img/usuario.jpg"
+    
+    # Exibição das mensagens
     for message in st.session_state.messages:
-        with st.chat_message(message["role"], avatar=icons[message["role"]]):
+        if message["role"] == "user":
+            # Verifica se a imagem do usuário existe
+            avatar_image = st.session_state.image if "image" in st.session_state and st.session_state.image else default_avatar_path
+        else:
+            avatar_image = icons["assistant"]  # Ícone padrão do assistente
+    
+        with st.chat_message(message["role"], avatar=avatar_image):
             st.write(message["content"])
 
     def clear_chat_history():
         st.session_state.messages = [{"role": "assistant", "content": 'Olá! Sou a KIRA, sua assistente virtual de moda aqui na FAM. Vou te ajudar a conectar com os melhores fabricantes e tornar sua experiência de compra ainda mais incrível.'}]
 
     st.sidebar.button('LIMPAR CONVERSA', on_click=clear_chat_history)
-    st.sidebar.caption(
-        'Built by [Snowflake](https://snowflake.com/) to demonstrate [Snowflake Arctic](https://www.snowflake.com/blog/arctic-open-and-efficient-foundation-language-models-snowflake). App hosted on [Streamlit Community Cloud](https://streamlit.io/cloud). Model hosted by [Replicate](https://replicate.com/snowflake/snowflake-arctic-instruct).')
-    st.sidebar.caption(
-        'Build your own app powered by Arctic and [enter to win](https://arctic-streamlit-hackathon.devpost.com/) $10k in prizes.')
-
+   
     st.sidebar.markdown("Desenvolvido por [WILLIAM EUSTÁQUIO](https://www.instagram.com/flashdigital.tech/)")
 
     @st.cache_resource(show_spinner=False)
@@ -193,11 +279,12 @@ async def showPedido():
         prompt.append("")
         prompt_str = "\n".join(prompt)
 
-        if get_num_tokens(prompt_str) >= 3500:  # padrão3072
-            if cadastro_pedido in system_prompt:
-                @st.dialog("DADOS PARA PEDIDO")
-                def show_contact_form():
-                    cadastro_pedido()
+        if is_health_question(prompt_str):
+            cadastrar_cliente()
+
+
+        if is_schedule_meeting_question(prompt_str):
+            agendar_reuniao()
 
         for event in replicate.stream(
                 "meta/meta-llama-3-70b-instruct",
@@ -214,15 +301,27 @@ async def showPedido():
         ):
             yield str(event)
 
+    
+    def get_avatar_image():
+        """Retorna a imagem do usuário ou a imagem padrão se não houver imagem cadastrada."""
+        if st.session_state.image is not None:
+            return st.session_state.image  # Retorna a imagem cadastrada
+        else:
+            return default_avatar_path  # Retorna a imagem padrão
+    
     # User-provided prompt
     if prompt := st.chat_input(disabled=not replicate_api):
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user", avatar="./src/img/perfil-usuario.png"):
+        
+        # Chama a função para obter a imagem correta
+        avatar_image = get_avatar_image()
+        
+        with st.chat_message("user", avatar=avatar_image):
             st.write(prompt)
-
+    
     # Generate a new response if last message is not from assistant
     if st.session_state.messages[-1]["role"] != "assistant":
-        with st.chat_message("assistant", avatar="./src/img/perfil-kira1.png"):
+        with st.chat_message("assistant", avatar="./src/img/perfil-kira2.png"):
             response = generate_arctic_response()
             full_response = st.write_stream(response)
         message = {"role": "assistant", "content": full_response}
